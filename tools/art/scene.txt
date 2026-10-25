@@ -1,0 +1,9 @@
+Dense, highly detailed pixel art game background of one small hidden forest glade, seen from a high three-quarter top-down angle as in a classic isometric strategy game (orthographic, no perspective distortion, no vanishing point). Everything fits in this one small location.
+
+Upper left: a tall grey limestone cliff of stacked rock pillars with moss, ferns and small pines on its ledges; a three-tier waterfall pours into a clear turquoise pool, and a stream runs from the pool along the left edge and out at the bottom left, with rocks and white foam.
+Top centre: at the foot of the cliff, a dark cave mouth among boulders, a soft warm golden light glowing from deep inside it.
+Right: a small timber-framed cottage with white plaster, a red-orange shingle roof, a stone chimney with a thin wisp of smoke, a tiny fenced herb garden with flowers, a woodpile.
+Centre and lower centre: a wide open meadow of short grass scattered with tiny white, red and yellow wildflowers and a winding dirt footpath from the bottom edge to the cottage and to the cave.
+Frame: dense trees all round the glade, dark green pines and spruces, round deciduous trees, a few golden-yellow and rust-orange autumn trees along the bottom edge and corners, red berry bushes.
+
+Soft late-afternoon sunlight from the upper left, soft shadows to the lower right. Very dense pixel detail, rich muted natural palette, crisp individual pixels, no blur. No text, no UI, no people, no characters, no animals.

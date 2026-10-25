@@ -1,0 +1,9 @@
+Pixel art character sprite sheet for a top-down three-quarter view adventure game. One original character: a small young wanderer in a hooded moss-green cloak, a cream tunic, brown boots and a brown leather satchel, holding a little brass lantern that glows warm gold.
+
+Layout: a grid of 4 rows and 4 columns, every cell the same size, the character centred in each cell, full body, feet on the same baseline in every cell, the same proportions and colours in every cell.
+Row 1: walking towards the viewer (facing down), 4 walk-cycle frames.
+Row 2: walking to the left (side view facing left), 4 walk-cycle frames.
+Row 3: walking to the right (side view facing right), 4 walk-cycle frames.
+Row 4: walking away from the viewer (back view, facing up), 4 walk-cycle frames.
+
+Crisp pixel art with a dark outline, limited palette, soft shading lit from the upper left. Solid flat pure magenta (#FF00FF) background filling the whole image, no ground, no shadows, no grid lines, no text, no labels.

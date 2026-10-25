@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+next-env.d.ts
+*.tsbuildinfo
+test-results
+playwright-report
+blob-report
+tools/art/raw
+shots/
+tools/art/exp/*.png
+tools/art/exp/*.log
+tools/art/exp/**/*.log
+tools/promo/*.mp4
+.DS_Store

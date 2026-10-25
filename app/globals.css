@@ -1,0 +1,206 @@
+/* Heart of the Light. The glade is one canvas scaled up with hard pixels to cover the window, by a
+   whole number of screen pixels per pixel (lib/camera.ts); the few words float over it in Pixelify
+   Sans on dark, slightly see-through panels with a one-pixel light rim, like the glade's own
+   pixels. */
+
+:root {
+  --night: #1b2412;
+  --panel: rgba(18, 22, 12, 0.82);
+  --rim: #e9d79a;
+  --ink: #f6eed2;
+  --gold: #ffd77a;
+  --pixel: var(--font-pixel), "Pixelify Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --gap: clamp(8px, 1.6vmin, 16px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--night);
+  color: var(--ink);
+  font-family: var(--pixel);
+  /* The Latin subset has no glyph for its fi ligature. */
+  font-variant-ligatures: none;
+  overscroll-behavior: none;
+}
+
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hotl-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.hotl-stage:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 2px solid var(--rim);
+  pointer-events: none;
+}
+
+.hotl-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1024px;
+  height: 576px;
+  transform-origin: 0 0;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.hotl-panel {
+  background: var(--panel);
+  border: 2px solid var(--rim);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 4px 4px 0 2px rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+}
+
+.hotl-lights {
+  position: absolute;
+  left: calc(var(--gap) + env(safe-area-inset-left, 0px));
+  top: calc(var(--gap) + env(safe-area-inset-top, 0px));
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.hotl-orb {
+  width: 14px;
+  height: 14px;
+  background: #3a3524;
+  box-shadow: inset 0 0 0 2px #1a170e;
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+}
+
+.hotl-orb[data-lit] {
+  background: radial-gradient(circle at 40% 40%, #fffbe8 0 25%, var(--gold) 26% 60%, #c98a2e 61%);
+  filter: drop-shadow(0 0 4px rgba(255, 215, 122, 0.9));
+}
+
+.hotl-corner {
+  position: absolute;
+  right: calc(var(--gap) + env(safe-area-inset-right, 0px));
+  top: calc(var(--gap) + env(safe-area-inset-top, 0px));
+  display: flex;
+  gap: 8px;
+}
+
+.hotl-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hotl-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: var(--ink);
+  shape-rendering: crispEdges;
+}
+
+.hotl-music[aria-pressed="false"] svg {
+  opacity: 0.4;
+}
+
+.hotl-home h1 {
+  margin: 0 0 0.4em;
+  font-size: clamp(30px, 7vmin, 60px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--gold);
+  text-shadow: 3px 3px 0 #3b2a0c, 0 0 18px rgba(255, 200, 100, 0.55);
+}
+
+.hotl-button {
+  margin-top: 1em;
+  padding: 10px 28px;
+  font: inherit;
+  font-size: clamp(17px, 2.8vmin, 24px);
+  font-weight: 700;
+  color: #2a1d06;
+  background: var(--gold);
+  border: 2px solid #fff3c4;
+  box-shadow: 0 0 0 2px #3b2a0c, 4px 4px 0 2px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.hotl-button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.hotl-home {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  padding: var(--gap);
+  animation: hotl-rise 2.4s ease-out both;
+}
+
+.hotl-home h1 {
+  color: #6b4310;
+  text-shadow: 2px 2px 0 #fff4d6, 0 0 24px rgba(255, 255, 255, 0.9);
+}
+
+.hotl-home p {
+  margin: 0 0 1em;
+  color: #4a300c;
+  font-size: clamp(17px, 3vmin, 26px);
+}
+
+@keyframes hotl-rise {
+  from {
+    opacity: 0;
+  }
+  40% {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.hotl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* The tree scene (app/tree): one canvas in the middle, hard pixels, nothing else. */
+.hotl-tree {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #8ea7ad;
+}
+
+.hotl-tree-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
