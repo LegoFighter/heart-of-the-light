@@ -333,6 +333,10 @@ language of their last message. Rules the owner set that are not obvious from th
   or the gust on it has moved a sixteenth, and not while it is more than 40 px outside what the
   camera shows (`View.shows`, set by `Game.tsx` after each frame). All 56 posed at once take
   some 14 ms on this machine, so a frame takes at most a quarter of that.
+- **0.4.3, the rain's sound** (owner, 2026-10-26: "ein weicheres Rauschen verwenden für den
+  Regen"): the rain was white noise between 600 Hz and 6.5 kHz, a hiss; it is pink noise now
+  (the `noise` buffer the falls and the wind use), kept between 350 Hz and 3 kHz and rounded
+  off above by a second low filter, at a level a little under the hiss's (`lib/sound.ts`).
 
 Still to do: the blind-play criteria of `docs/neues-spiel.md` checked one by one and their tests
 (the hint key, the spoken places and the hum are there), then a line in `HOW` and out of

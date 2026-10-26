@@ -94,7 +94,7 @@ from here sends anything anywhere: there is no tracking in it.
   painting's palette), its far side from the lantern a step in shade. The lantern swings as a pendulum; the cloak's back flap takes the wind.
 - **The sound** (`lib/sound.ts`) is made in code: a dulcimer playing its own phrases in C minor
   over a drone, the waterfall louder as you near it (and quieter under ice), wind, the trees'
-  creak in a strong wind, rain, thunder, the ice cracking, birds by day, crickets by night, steps
+  creak in a strong wind, a soft patter of rain (pink noise since 0.4.3), thunder, the ice cracking, birds by day, crickets by night, steps
   that change with the ground (grass, the path, lying snow), and a hum from the nearest light,
   panned to its side.
 

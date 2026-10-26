@@ -334,19 +334,21 @@ function build(context: AudioContext): Rig {
   leaves.Q.value = 0.6;
   const wind = context.createGain();
   wind.gain.value = 0.025;
-  // Rain: white noise without its lowest and highest, a hiss on the leaves.
-  const hiss = context.createBuffer(1, context.sampleRate * 3, context.sampleRate);
-  const hissData = hiss.getChannelData(0);
-  for (let i = 0; i < hissData.length; i++) hissData[i] = (Math.random() * 2 - 1) * 0.5;
+  // Rain: pink noise, not white (owner, 2026-10-26: "ein weicheres Rauschen"), kept between
+  // 350 Hz and 3 kHz and rounded off above with a second low filter: a patter on the leaves
+  // heard from under the eaves, no hiss. The level matches the old white hiss's at 0.16.
   const rainLow = context.createBiquadFilter();
   rainLow.type = "highpass";
-  rainLow.frequency.value = 600;
+  rainLow.frequency.value = 350;
   const rainHigh = context.createBiquadFilter();
   rainHigh.type = "lowpass";
-  rainHigh.frequency.value = 6500;
+  rainHigh.frequency.value = 3000;
+  const rainRound = context.createBiquadFilter();
+  rainRound.type = "lowpass";
+  rainRound.frequency.value = 4200;
   const rainGain = context.createGain();
   rainGain.gain.value = 0;
-  loop(context, hiss).connect(rainLow).connect(rainHigh).connect(rainGain).connect(world);
+  loop(context, noise(context, 3)).connect(rainLow).connect(rainHigh).connect(rainRound).connect(rainGain).connect(world);
   const gust = context.createOscillator();
   gust.frequency.value = 0.11;
   const gustDepth = context.createGain();
@@ -424,7 +426,7 @@ export function setSurroundings(air: Air, night: number, cover = 0) {
   around = { night, rain: air.rain, snow: air.snow, wind: air.wind, storm: air.storm, ice: Math.max(0, Math.min(1, (cover - 0.2) / 0.75)), cover };
   if (!rig) return;
   const now = rig.context.currentTime;
-  rig.rain.gain.setTargetAtTime(air.rain * 0.16, now, 0.8);
+  rig.rain.gain.setTargetAtTime(air.rain * 0.13, now, 0.8);
   rig.wind.gain.setTargetAtTime(0.012 + 0.016 * air.wind, now, 0.8);
 }
 
