@@ -243,6 +243,7 @@ export default function Game() {
         const aim = promo ? (window as unknown as { hotlCamera?: { x: number; y: number; zoom?: number } }).hotlCamera : undefined;
         const shown = follow(camera, aim?.x ?? play.hero.x, aim?.y ?? play.hero.y - 16, stage.clientWidth, stage.clientHeight, window.devicePixelRatio || 1, aim?.zoom ?? zoom, dt);
         canvas.style.transform = `translate(${-shown.left * shown.scale}px, ${-shown.top * shown.scale}px) scale(${shown.scale})`;
+        viewRef.current?.shows(shown.left, shown.top, stage.clientWidth / shown.scale, stage.clientHeight / shown.scale);
         const at = `${Math.round(play.hero.x)},${Math.round(play.hero.y)}`;
         if (stage.dataset.hero !== at) stage.dataset.hero = at;
       }

@@ -10,11 +10,18 @@
    Since 2026-10-25 every tree is one of the new kind (owner: "ersetze alle Bäume mit der neuen
    Baumart, erstelle jeden Baum einen individuellen Stamm"): a painted bare trunk of its own
    from public/assets/trunks.png (56 of them, tools/art/trunks.py) with the twigs and leaves of
-   lib/tree.ts grown on it, drawn once as it stands still (`renderTree`) and then swayed in bands
-   like the sprites before it. The sheet's tree sprites are not drawn any more; the placements,
-   the bushes and the rocks stay. */
+   lib/tree.ts grown on it. The sheet's tree sprites are not drawn any more; the placements, the
+   bushes and the rocks stay.
 
-import { paintedTree, paintTree, renderTree, shadedPicture, SHEET_BARK, SHEET_LEAF, type Painted, type Rendered } from "./tree";
+   Since 2026-10-26 a tree is posed and drawn as the study's tree is (owner: "die Bäume sollen so
+   aussehen wie bei dem einzelnen Baum", with the wave shader gone): its twigs bend about their
+   bases and carry their leaves, and the leaves flutter one by one in a gust, instead of the whole
+   rendered tree shifting in bands. Each tree is drawn into a sprite of its own (`TreeSprite`)
+   POSE_FPS times a second, the trees in turn, not all in the same frame; out of a gust, where
+   no twig trembles and no leaf flutters, only when the wind on it has changed enough to move a
+   pixel; and not at all while it is out of the camera's sight. */
+
+import { paintedTree, paintTree, shadedPicture, SHEET_BARK, SHEET_LEAF, TreeSprite, windAt, type Painted, type Tree } from "./tree";
 
 /** One painted bare trunk in the atlas (tools/art/trunks.py). */
 export interface TrunkSprite {
@@ -78,6 +85,13 @@ export function gust(x: number, y: number, t: number, wind: number): number {
 /** The study's big tree is 293 px tall; a glade tree's twigs and leaves are set smaller by its
     size. */
 const STUDY_HEIGHT = 293;
+/** The room round a painted trunk that its leaves may take. */
+const MARGIN = 14;
+/** How often a tree is posed anew, as the wanderer and the deer are (lib/puppet.ts). */
+const POSE_FPS = 15;
+/** How far outside what the camera shows a tree is still posed: the camera glides a few pixels a
+    frame, and a puddle mirrors what stands some rows above it. */
+const SIGHT = 40;
 /** How much of its leaves a tree still has at each step of the winter, in leaf to bare. */
 const SHARES = [1, 0.72, 0.45, 0.2, 0];
 /** The step for the snow that lies: the leaves go as the snow settles, most of them before it
@@ -88,12 +102,15 @@ export function stageOf(cover: number): number {
 }
 
 export class Flora {
-  /** The rendered tree for each placed tree, by its index in `placed`: in leaf, and shedding
-      its leaves in steps down to bare (owner, 2026-10-25: "im Winter sollen die Bäume ihre
-      Blätter verlieren, und kahler werden"), the step picked by how much snow lies. */
-  private readonly trees = new Map<number, { stages: Rendered[]; trunk: number }>();
+  /** The rigged tree for each placed tree, by its index in `placed`: in leaf, and shedding its
+      leaves in steps down to bare (owner, 2026-10-25: "im Winter sollen die Bäume ihre Blätter
+      verlieren, und kahler werden"), the step picked by how much snow lies; with the size it is
+      drawn at, leaves and all. */
+  private readonly trees = new Map<number, { stages: Tree[]; trunk: number; w: number; h: number; sprite: TreeSprite; turn: number; frame: number; stage: number; still: string }>();
   /** How much snow lies, 0..1; the view sets it each frame. */
   cover = 0;
+  /** What the camera shows, in the painting's pixels; unset, everything. */
+  seen?: { x: number; y: number; w: number; h: number };
 
   constructor(
     private readonly sheet: HTMLImageElement,
@@ -120,9 +137,10 @@ export class Flora {
       const tree = paintedTree(painted, i + 1, 2, t.h / STUDY_HEIGHT);
       // Each leaf has a phase of its own; the leaves with the highest go first, so a tree sheds
       // the same leaves in the same order every winter.
-      const stages = SHARES.map((share) => renderTree({ ...tree, leaves: tree.leaves.filter((l) => l.phase < share * 6.2832) }));
-      this.trees.set(i, { stages, trunk: t.trunk });
-      p.h = stages[0].h;
+      const stages = SHARES.map((share) => ({ ...tree, leaves: tree.leaves.filter((l) => l.phase < share * 6.2832) }));
+      // The trees take their turns to be posed spread over the frame of POSE_FPS.
+      this.trees.set(i, { stages, trunk: t.trunk, w: t.w + MARGIN * 2, h: t.h + MARGIN, sprite: new TreeSprite(painted, MARGIN), turn: (k * 0.618) % 1, frame: -1, stage: -1, still: "" });
+      p.h = t.h + MARGIN;
     });
   }
 
@@ -140,8 +158,25 @@ export class Flora {
       const s = sprites[p.sprite];
       const own = this.trees.get(i);
       if (own) {
-        const tree = own.stages[stageOf(this.cover)];
-        this.plant(c, tree.canvas, { kind: "broadleaf", x: 0, y: 0, w: tree.w, h: tree.h, foot: tree.foot.x, trunk: own.trunk }, p, t, wind);
+        const stage = stageOf(this.cover);
+        const frame = Math.floor(t * POSE_FPS + own.turn);
+        const left = p.x - own.sprite.foot.x;
+        const top = p.y - own.sprite.foot.y;
+        const v = this.seen;
+        const inSight = !v || (left < v.x + v.w + SIGHT && left + own.w > v.x - SIGHT && top < v.y + v.h + SIGHT && p.y > v.y - SIGHT);
+        if (inSight && (frame !== own.frame || stage !== own.stage)) {
+          own.frame = frame;
+          // Out of a gust (lib/tree.ts trembles and flutters above 0.2) the pose is the sway and
+          // the gust alone: in steps of a sixteenth, which move a tip a fraction of a pixel.
+          const { sway, g } = windAt(p.x, p.y, t, wind);
+          const still = g > 0.2 ? "" : Math.round(sway * 16) + "," + Math.round(g * 16);
+          if (stage !== own.stage || !still || still !== own.still) {
+            own.sprite.draw(own.stages[stage], p.x, p.y, t, wind);
+            own.stage = stage;
+            own.still = still;
+          }
+        }
+        c.drawImage(own.sprite.canvas, left, top);
       } else this.plant(c, this.sheet, s, p, t, wind);
     }
   }
@@ -155,7 +190,7 @@ export class Flora {
     const long = 1 + Math.max(0, Math.abs(hour - 13) - 3) * 0.12;
     placed.forEach((p, pi) => {
       const own = this.trees.get(pi);
-      const s = own ? { ...sprites[p.sprite], w: own.stages[0].w, h: own.stages[0].h } : sprites[p.sprite];
+      const s = own ? { ...sprites[p.sprite], w: own.w, h: own.h } : sprites[p.sprite];
       const tree = s.kind !== "bush" && s.kind !== "rock";
       const rx = s.kind === "rock" ? s.w * 0.5 : tree ? s.w * 0.4 : s.w * 0.45;
       const ry = s.kind === "rock" ? Math.max(2, s.h * 0.22) : tree ? Math.max(3, s.h * 0.1) : 3;

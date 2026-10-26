@@ -27,6 +27,7 @@ writes a static export to `out/`).
 
 The tree is grown in code on a painted bare trunk and swayed in the glade's wind (`lib/tree.ts`;
 `/tree` in the dev app shows one on its own: ArrowUp/Down for the wind, R for another tree).
+Every tree of the glade moves the same way (0.4.2).
 
 ## Licence
 
@@ -49,10 +50,10 @@ from here sends anything anywhere: there is no tracking in it.
 ## How it is made
 
 - **The glade** is one painting (`public/assets/scene.png`, 1024x576, 96 colours) that moves in a
-  WebGL2 shader (`lib/stage.ts`) by taking other pixels of itself: leaves and grass sway by whole
-  pixels with gusts rolling across, the falls and the stream run along a flow map with a dithered
-  two-phase crossfade, the pool rings, mist rises, smoke is drawn in dithered steps. Masks say
-  what is what (`masks.png`, `flow.png`).
+  WebGL2 shader (`lib/stage.ts`) by taking other pixels of itself: painted leaves and grass sway
+  and flicker by whole pixels (no gust rolls across them as a wave since 0.4.2), the falls and
+  the stream run along a flow map with a dithered two-phase crossfade, the pool rings, mist
+  rises, smoke is drawn in dithered steps. Masks say what is what (`masks.png`, `flow.png`).
 - **The day and the weather** (`game/sky.ts`, `game/weather.ts`; the weather changes every
   minute or so, a change asked for with the button comes in seconds, and snow switched off
   there stops at once and melts in seconds) grade the picture: dawn, day,
@@ -100,8 +101,10 @@ from here sends anything anywhere: there is no tracking in it.
 - **The trees** (0.4.0): every one of the 56 trees stands on a painted bare trunk of its own
   (`public/assets/trunks.png`, from 14 OpenAI sheets through `tools/art/trunks.py`), with twigs
   and leaves grown on it by `lib/tree.ts` (leaves set along the picture's twigs and out of its
-  tips, lit where they lie free towards the sun, dark inside the crown and lower down), rendered
-  once and swayed in bands by the glade's one wind. They shed their leaves as the snow settles
+  tips, lit where they lie free towards the sun, dark inside the crown and lower down). Since
+  0.4.2 they move as the study's tree does: posed fifteen times a second, the twigs bending and
+  carrying their leaves, the leaves fluttering in a gust, drawn into a pixel buffer each
+  (`TreeSprite`), and only while the camera sees them. They shed their leaves as the snow settles
   and leaf again as it melts; the crowns shade the grass under them. `/tree` in the dev app shows
   one such tree alone, big, from the first study.
 

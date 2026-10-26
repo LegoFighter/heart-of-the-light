@@ -149,6 +149,19 @@ describe("the rig on the painted tree", () => {
     expect(shifted).toBe(true);
   });
 
+  it("sways a smaller tree's crown as far for its size, the study's as it was", () => {
+    let small = 0;
+    let study = 0;
+    for (let t = 0; t < 30; t += 0.25) {
+      const { sway, g } = windAt(180, 332, t, 1);
+      small = Math.max(small, Math.abs(bandShift(0, 120, sway, g, t)));
+      study = Math.max(study, Math.abs(bandShift(0, 293, sway, g, t)));
+      expect(bandShift(0, 293, sway, g, t)).toBe(Math.round((sway + g * 1.4 + (g > 0.2 ? Math.sin(t * 2.6) * 0.4 * g : 0)) * 4));
+    }
+    expect(small).toBeGreaterThan(0);
+    expect(small).toBeLessThanOrEqual(Math.ceil(study * (120 / 293)) + 1);
+  });
+
   it("never shifts the trunk's rows", () => {
     for (let t = 0; t < 30; t += 0.5) {
       const { sway, g } = windAt(180, 332, t, 1);

@@ -7,8 +7,9 @@
 //   node tools/promo/making-of.mjs [out.mp4]
 //
 // Writes tools/promo/making-of.mp4 by default (not checked in). Needs the dev server (npm run
-// dev; PORT=… for another port) and ffmpeg (FFMPEG=…). SECONDS=… scales every length for a quick
-// look (0.2 is a fifth). No sound.
+// dev; PORT=… for another port) and ffmpeg (FFMPEG=…). SPEED=0.2 shortens every stage to a fifth
+// for a quick look (not SECONDS: that is the shell's own integer), STAGES=0,3 renders only those
+// stages. No sound.
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,7 +21,7 @@ const out = process.argv[2] ?? "tools/promo/making-of.mp4";
 const fps = 30;
 const step = 1000 / fps;
 const port = process.env.PORT ?? "8796";
-const SCALE = Number(process.env.SECONDS ?? 1);
+const SCALE = Number(process.env.SPEED ?? 1);
 const OUT = { width: 1920, height: 1080 };
 /** The clips are rendered at half size and doubled (pixel for pixel), as the quadrant video is. */
 const CLIP = { width: 960, height: 540 };
@@ -47,7 +48,7 @@ const STAGES = [
     cap: ["1 · One picture", "A static scene from OpenAI's image model, drawn after one reference screenshot. Nothing moves yet."],
   },
   {
-    kind: "still", seconds: 8, file: "public/assets/masks.png",
+    kind: "still", seconds: 8, file: "tools/art/raw/old-masks.png",
     cap: ["2 · The masks", "A colour per kind of pixel: leaves and grass sway, water runs, stone, wood and walls stand still."],
   },
   {
@@ -126,8 +127,9 @@ async function blank(browser, size) {
 async function pngToVideo(png, seconds, file) {
   const src = file + ".png";
   writeFileSync(src, png);
+  console.log("still", src, png.length, "bytes,", seconds, "s");
   await run([
-    "-v", "error", "-y", "-loop", "1", "-framerate", String(fps), "-t", String(seconds), "-i", src,
+    "-v", "warning", "-y", "-loop", "1", "-framerate", String(fps), "-t", String(seconds), "-i", src,
     "-vf", `scale=${OUT.width}:${OUT.height}:flags=neighbor,format=yuv420p`, "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-r", String(fps), file,
   ]);
 }
@@ -251,7 +253,9 @@ const dir = mkdtempSync(join(tmpdir(), "hotl-making-"));
 console.log("segments in", dir);
 const browser = await chromium.launch({ args: ["--mute-audio", "--ignore-gpu-blocklist"] });
 const files = [];
+const only = process.env.STAGES?.split(",").map(Number);
 for (const [i, stage] of STAGES.entries()) {
+  if (only && !only.includes(i)) continue;
   const file = join(dir, `s${String(i).padStart(2, "0")}.mp4`);
   if (stage.kind === "card") await renderCard(browser, stage, file);
   else if (stage.kind === "still") await renderStill(browser, stage, file);

@@ -317,6 +317,23 @@ language of their last message. Rules the owner set that are not obvious from th
   calms (`race`, `fleck`), and the stream's mouth carries more foam down from the pool
   (`fromPool`).
 
+- **0.4.2, the trees as the study's** (owner, 2026-10-26: "entfern mal diesen wave shader … die
+  Bäume sollen so aussehen wie bei dem einzelnen Baum GIF / Test"): the shader's `breeze` is gone
+  (the gust that rolled over the plant canvases as a band, letting edge leaves go and shining),
+  and so is the gust's wave on the grass and on the painting's own leaves (masks R: those sway
+  at each clump's own phase now); only the chimney's smoke still takes the shader's `gust`. A
+  tree of the glade is no longer rendered once and shifted in 6-row bands: `Flora` poses it as
+  the study poses its tree (`drawTree`'s drawing, the twigs bending about their bases with
+  their leaves, the leaves fluttering one by one in a gust, the picture's bands under them),
+  with the band shift scaled by the tree's height against the study's 293 px (`bandShift`), so
+  a glade tree moves as much for its size as the study's. 56 trees are some 150,000 leaves, and
+  as rects on a canvas that took a hundred milliseconds a frame: each tree is drawn into a
+  pixel buffer of its own (`TreeSprite`, the same pixels through the `Pen` of `lib/tree.ts`),
+  posed anew POSE_FPS (15) times a second, the trees in turn; out of a gust only when the sway
+  or the gust on it has moved a sixteenth, and not while it is more than 40 px outside what the
+  camera shows (`View.shows`, set by `Game.tsx` after each frame). All 56 posed at once take
+  some 14 ms on this machine, so a frame takes at most a quarter of that.
+
 Still to do: the blind-play criteria of `docs/neues-spiel.md` checked one by one and their tests
 (the hint key, the spoken places and the hum are there), then a line in `HOW` and out of
 `NOT_YET` in `apps/web/lib/accessible.ts`; the game's own e2e tests. The cover comes from

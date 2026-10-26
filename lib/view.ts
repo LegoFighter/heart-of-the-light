@@ -443,6 +443,12 @@ export class View {
     }
   }
 
+  /** What the camera shows, in the painting's pixels (Game.tsx, after each frame): the trees
+      outside it are not posed anew (lib/flora.ts). */
+  shows(x: number, y: number, w: number, h: number) {
+    this.art.flora.seen = { x, y, w, h };
+  }
+
   /** What is under the wanderer's feet, for the sound of the steps. */
   groundAt(x: number, y: number): Ground {
     const g = this.art.kinds[((Math.round(y) * W + Math.round(x)) | 0) * 4 + 1];

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Narrate the making-of</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 20px; background: #0f0c06; color: #f4ecd2; font: 15px/1.45 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 6px; color: #f2c94c; }
+  .hint { color: #b7ad94; margin: 0 0 14px; }
+  .top { display: grid; grid-template-columns: minmax(320px, 960px) 1fr; gap: 20px; align-items: start; }
+  video { width: 100%; background: #000; border: 2px solid #e9d79a; }
+  .export { background: #1a1408; border: 1px solid #3a2f14; padding: 14px; border-radius: 6px; }
+  .export code { display: block; white-space: pre-wrap; background: #0a0804; padding: 8px; margin-top: 8px; font-size: 12px; color: #d8cfae; }
+  button { background: #2a2210; color: #f4ecd2; border: 1px solid #e9d79a; padding: 6px 12px; border-radius: 4px; cursor: pointer; font: inherit; }
+  button:hover { background: #3a2f14; } button:disabled { opacity: 0.4; cursor: default; }
+  button.rec { border-color: #e55; color: #fbb; } button.rec.on { background: #a22; color: #fff; }
+  .scene { display: grid; grid-template-columns: 110px 1fr 300px; gap: 14px; padding: 12px 0; border-top: 1px solid #2a2210; }
+  .scene.active { background: #16120a; }
+  .time { color: #b7ad94; font-size: 13px; } .time b { display: block; color: #f2c94c; font-size: 14px; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 92px; background: #0a0804; color: #f4ecd2; border: 1px solid #3a2f14; padding: 8px; font: 15px/1.45 Georgia, serif; resize: vertical; }
+  .take { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+  .take .state { width: 100%; color: #b7ad94; } .take .state.warn { color: #f88; }
+  .words { font-size: 12px; color: #8f866e; text-align: right; }
+</style>
+</head>
+<body>
+<h1>Heart of the Light · narrate the making-of</h1>
+<p class="hint">Open this file in Chrome next to <code>making-of.mp4</code>. For each scene: read the text (edit it as you like, it is saved in the browser), press <b>Record</b>, the scene plays while the microphone listens, press <b>Stop</b> or let the scene end. <b>Play take</b> hears it with the picture. When all are in, <b>Export narration.wav</b> lays every take at its scene's start, and the command below puts the sound under the video. A take longer than its scene simply runs on into the next one.</p>
+
+<div class="top">
+  <div>
+    <video id="video" src="making-of.mp4" controls preload="auto"></video>
+    <p><button id="playAll">Play all with takes</button> <button id="stopAll">Stop</button> <span id="clock" class="time"></span></p>
+  </div>
+  <div class="export">
+    <b>Export</b>
+    <p><button id="export">Export narration.wav</button> <button id="clear">Forget all takes</button></p>
+    <div id="exportState" class="hint"></div>
+    Then, in <code>tools/promo</code>:
+    <code>./narrate.sh ~/Downloads/narration.wav</code>
+    or by hand:
+    <code>ffmpeg -i making-of.mp4 -i narration.wav -c:v copy -c:a aac -b:a 192k -shortest making-of-voice.mp4</code>
+  </div>
+</div>
+
+<div id="scenes"></div>
+
+<script>
+// The stages of tools/promo/making-of.mjs at SPEED 1, in seconds, with a suggested narration each.
+const SCENES = [
+  [0, 4, "Title", "How the Heart of the Light scene was made."],
+  [4, 13, "One picture", "It started as one static picture from OpenAI's image model, after a screenshot I used as the style reference."],
+  [13, 21, "The masks", "Masks over it say what may move: leaves and grass sway, water runs, stone and walls stand still."],
+  [21, 35, "The wave", "The first motion was a wave: a slow gust across the glade, shifting only the masked pixels. Early on it rippled everything and made people dizzy, so now it is one soft gust."],
+  [35, 56, "Light", "Then the light. Every hour tints the frame, but through a palette built from the painting's own colours, so dawn, golden hour and night stay in the same pixel art colours. At dusk the windows and the lantern come on, and the lantern's glow goes through that palette too."],
+  [56, 74, "Weather", "On top sits the weather, six kinds over the same picture. Every raindrop lands somewhere and splashes after what it hits. Snow settles over time, lies on the leaves, and the falls freeze in from their edges."],
+  [74, 82, "The ground alone", "A tester asked, is it all one static image? It was. So the painting was redone as bare ground, and the plants became objects."],
+  [82, 99, "A tree", "The bare tree is a picture from the image model, its twig tips marked. A rig in code grows twigs and leaves on those tips, lights each leaf by how open it is to the sun, and sways the crown in the wind."],
+  [99, 115, "The glade with the new trees", "Every tree in the glade is now such a rig on a painted trunk of its own. When winter comes, the leaves let go as the snow settles, because they are objects now, not pixels in a painting."],
+  [115, 120, "End", "No engine, just Next.js. Play it free at minigames dot world."],
+];
+
+const video = document.getElementById("video");
+const list = document.getElementById("scenes");
+const takes = new Map(); // index -> { blob, url, seconds }
+let recorder, stream, stopAt, timer, rows = [];
+const key = (i) => "hotl-narrate-" + i;
+
+function fmt(s) { return Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0"); }
+
+for (const [i, [a, b, title, text]] of SCENES.entries()) {
+  const row = document.createElement("div");
+  row.className = "scene";
+  row.innerHTML = `
+    <div class="time"><b>${i + 1} · ${title}</b>${fmt(a)} – ${fmt(b)}<br>${b - a} s<br><button class="play">Play scene</button></div>
+    <div><textarea></textarea><div class="words"></div></div>
+    <div class="take"><button class="rec">Record</button><button class="hear" disabled>Play take</button><button class="del" disabled>Delete</button><span class="state">no take yet</span></div>`;
+  const ta = row.querySelector("textarea");
+  ta.value = localStorage.getItem(key(i)) ?? text;
+  const words = row.querySelector(".words");
+  const count = () => { const n = ta.value.trim().split(/\s+/).filter(Boolean).length; words.textContent = `${n} words · about ${Math.round(n / 2.3)} s spoken · scene is ${b - a} s`; };
+  count();
+  ta.addEventListener("input", () => { localStorage.setItem(key(i), ta.value); count(); });
+  row.querySelector(".play").onclick = () => playRange(a, b, i);
+  row.querySelector(".rec").onclick = () => (recorder ? stopRecording() : record(i, a, b));
+  row.querySelector(".hear").onclick = () => hear(i, a);
+  row.querySelector(".del").onclick = () => { takes.delete(i); show(i); };
+  list.append(row);
+  rows.push(row);
+}
+
+function show(i) {
+  const row = rows[i], t = takes.get(i), [a, b] = SCENES[i];
+  row.querySelector(".hear").disabled = row.querySelector(".del").disabled = !t;
+  const state = row.querySelector(".state");
+  if (!t) { state.textContent = "no take yet"; state.className = "state"; return; }
+  const over = t.seconds - (b - a);
+  state.textContent = `take: ${t.seconds.toFixed(1)} s` + (over > 0.5 ? ` · ${over.toFixed(1)} s longer than the scene, it runs into the next` : "");
+  state.className = "state" + (over > 0.5 ? " warn" : "");
+}
+
+function playRange(a, b, i) {
+  stopAll();
+  video.currentTime = a;
+  stopAt = b;
+  rows.forEach((r, k) => r.classList.toggle("active", k === i));
+  video.play();
+}
+video.addEventListener("timeupdate", () => {
+  document.getElementById("clock").textContent = fmt(video.currentTime);
+  if (stopAt != null && video.currentTime >= stopAt) { video.pause(); stopAt = null; if (recorder) stopRecording(); }
+});
+
+async function record(i, a, b) {
+  stream ??= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
+  const chunks = [];
+  recorder = new MediaRecorder(stream);
+  const started = performance.now();
+  recorder.ondataavailable = (e) => chunks.push(e.data);
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: recorder.mimeType });
+    takes.set(i, { blob, url: URL.createObjectURL(blob), seconds: (performance.now() - started) / 1000 });
+    recorder = null;
+    rows[i].querySelector(".rec").textContent = "Record";
+    rows[i].querySelector(".rec").classList.remove("on");
+    show(i);
+  };
+  rows[i].querySelector(".rec").textContent = "Stop";
+  rows[i].querySelector(".rec").classList.add("on");
+  video.muted = true;
+  playRange(a, b, i);
+  recorder.start();
+}
+function stopRecording() { if (recorder && recorder.state !== "inactive") recorder.stop(); video.pause(); stopAt = null; }
+
+let audio;
+function hear(i, a) {
+  stopAll();
+  audio = new Audio(takes.get(i).url);
+  video.muted = true;
+  playRange(a, SCENES[i][1], i);
+  audio.play();
+}
+function stopAll() { video.pause(); stopAt = null; if (audio) { audio.pause(); audio = null; } clearTimeout(timer); if (scheduled) { scheduled.forEach((s) => s.stop()); scheduled = null; } }
+document.getElementById("stopAll").onclick = stopAll;
+
+// Play all: the video from the start with every take scheduled at its scene through Web Audio.
+let ctx, scheduled;
+async function buffers() {
+  ctx ??= new AudioContext();
+  const out = [];
+  for (const [i, t] of takes) out.push([i, await ctx.decodeAudioData(await t.blob.arrayBuffer())]);
+  return out;
+}
+document.getElementById("playAll").onclick = async () => {
+  stopAll();
+  const bufs = await buffers();
+  await ctx.resume();
+  video.muted = true;
+  video.currentTime = 0;
+  const t0 = ctx.currentTime + 0.3;
+  scheduled = bufs.map(([i, buf]) => { const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); s.start(t0 + SCENES[i][0]); return s; });
+  setTimeout(() => video.play(), 300);
+};
+
+// Export: one 48 kHz mono 16-bit WAV as long as the video, each take at its scene's start.
+document.getElementById("export").onclick = async () => {
+  const state = document.getElementById("exportState");
+  if (!takes.size) { state.textContent = "No takes yet."; return; }
+  const rate = 48000;
+  const bufs = await buffers();
+  const end = Math.max(video.duration || 120, ...bufs.map(([i, b]) => SCENES[i][0] + b.duration));
+  const n = Math.ceil(end * rate);
+  const mix = new Float32Array(n);
+  for (const [i, b] of bufs) {
+    const off = Math.round(SCENES[i][0] * rate);
+    const src = b.getChannelData(0), ratio = b.sampleRate / rate, len = Math.floor(src.length / ratio);
+    for (let k = 0; k < len && off + k < n; k++) mix[off + k] += src[Math.floor(k * ratio)];
+  }
+  const wav = new DataView(new ArrayBuffer(44 + n * 2));
+  const str = (o, s) => [...s].forEach((c, k) => wav.setUint8(o + k, c.charCodeAt(0)));
+  str(0, "RIFF"); wav.setUint32(4, 36 + n * 2, true); str(8, "WAVE"); str(12, "fmt "); wav.setUint32(16, 16, true);
+  wav.setUint16(20, 1, true); wav.setUint16(22, 1, true); wav.setUint32(24, rate, true); wav.setUint32(28, rate * 2, true);
+  wav.setUint16(32, 2, true); wav.setUint16(34, 16, true); str(36, "data"); wav.setUint32(40, n * 2, true);
+  for (let k = 0; k < n; k++) wav.setInt16(44 + k * 2, Math.max(-1, Math.min(1, mix[k])) * 32767, true);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
+  a.download = "narration.wav";
+  a.click();
+  const missing = SCENES.map((_, i) => i + 1).filter((i) => !takes.has(i - 1));
+  state.textContent = `narration.wav written, ${end.toFixed(0)} s` + (missing.length ? ` · scenes without a take: ${missing.join(", ")}` : "");
+};
+document.getElementById("clear").onclick = () => { if (confirm("Forget every take?")) { takes.clear(); rows.forEach((_, i) => show(i)); } };
+</script>
+</body>
+</html>

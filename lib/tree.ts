@@ -330,24 +330,27 @@ export function pose(branches: Branch[], x: number, y: number, t: number, wind: 
 /** A band of the painted tree is this many rows; the bands above the trunk shift by whole
     pixels, more the higher, as the glade's crowns do (lib/flora.ts). */
 const BAND = 6;
+/** The study's painted tree is this tall; a smaller tree's crown goes as far for its size, so a
+    tree of the glade (100–134 px) moves as the study's does, not twice as much. */
+const STUDY = 293;
 
 /** How far the painted tree's row `row` (0 its top) is shifted this moment. */
 export function bandShift(row: number, h: number, sway: number, g: number, t: number): number {
   const band = Math.floor(row / BAND) * BAND;
   const height = (h - band) / h;
   if (height < 0.36) return 0;
-  const amount = ((height - 0.36) / 0.64) ** 2 * 4;
+  const amount = ((height - 0.36) / 0.64) ** 2 * 4 * Math.min(1, h / STUDY);
   const rustle = g > 0.2 ? Math.sin(t * 2.6 + band * 0.5) * 0.4 * g : 0;
   return Math.round((sway + g * 1.4 + rustle) * amount);
 }
 
 /** Draws the painted bare tree with its foot at (x, y), the trunk still and the crown in bands. */
-function drawPainted(c: CanvasRenderingContext2D, p: Painted, x: number, y: number, sway: number, g: number, t: number) {
+function drawPainted(pen: Pen, p: Painted, x: number, y: number, sway: number, g: number, t: number) {
   const left = x - p.foot.x;
   const top = y - p.foot.y;
   for (let row = 0; row < p.h; row += BAND) {
     const rows = Math.min(BAND, p.h - row);
-    c.drawImage(p.image, 0, row, p.w, rows, left + bandShift(row, p.h, sway, g, t), top + row, p.w, rows);
+    pen.picture(p, row, rows, left + bandShift(row, p.h, sway, g, t), top + row);
   }
 }
 
@@ -421,32 +424,9 @@ export function shadedPicture(source: CanvasImageSource, sx: number, sy: number,
   return canvas;
 }
 
-/** A tree as it stands still, drawn once onto a canvas of its own with room for the leaves
-    round the picture: the glade draws these and sways them in bands (lib/flora.ts). */
-export interface Rendered {
-  canvas: HTMLCanvasElement;
-  w: number;
-  h: number;
-  /** The foot inside the canvas; its y is the bottom row. */
-  foot: { x: number; y: number };
-}
-
-export function renderTree(tree: Tree, margin = 14): Rendered {
-  const p = tree.painted!;
-  const w = p.w + margin * 2;
-  const h = p.h + margin;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const c = canvas.getContext("2d")!;
-  const foot = { x: margin + p.foot.x, y: h - 1 };
-  drawTree(c, tree, foot.x, foot.y, 0, 0);
-  return { canvas, w, h, foot };
-}
-
 /** A pixel line of a whole width from (x0, y0) to (x1, y1): runs of `w0` to `w1` pixels across the
     line's direction, one per step along it, so a steep branch is rows and a flat one columns. */
-function line(c: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, w0: number, w1: number) {
+function line(c: Pen, x0: number, y0: number, x1: number, y1: number, w0: number, w1: number) {
   const dx = x1 - x0;
   const dy = y1 - y0;
   const steep = Math.abs(dy) >= Math.abs(dx);
@@ -456,14 +436,14 @@ function line(c: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y
     const w = Math.max(1, Math.round(w0 + (w1 - w0) * u));
     const px = Math.round(x0 + dx * u);
     const py = Math.round(y0 + dy * u);
-    if (steep) c.fillRect(px - (w >> 1), py, w, 1);
-    else c.fillRect(px, py - (w >> 1), 1, w);
+    if (steep) c.rect(px - (w >> 1), py, w, 1);
+    else c.rect(px, py - (w >> 1), 1, w);
   }
 }
 
 /** The bark's grooves on a thick branch: short dark strokes along it, and a lit fleck here and
     there, at places that are the same every frame (a hash of the branch and the step). */
-function grooves(c: CanvasRenderingContext2D, i: number, x0: number, y0: number, x1: number, y1: number, w0: number, w1: number) {
+function grooves(c: Pen, i: number, x0: number, y0: number, x1: number, y1: number, w0: number, w1: number) {
   const dx = x1 - x0;
   const dy = y1 - y0;
   const steps = Math.max(1, Math.round(Math.max(Math.abs(dx), Math.abs(dy))));
@@ -476,23 +456,23 @@ function grooves(c: CanvasRenderingContext2D, i: number, x0: number, y0: number,
     const across = Math.round((h / 0.42 - 0.5) * (w - 1.5));
     const px = Math.round(x0 + dx * u) + (steep ? across : 0);
     const py = Math.round(y0 + dy * u) + (steep ? 0 : across);
-    c.fillStyle = h < 0.3 ? barkInk[1] : barkInk[4];
-    if (steep) c.fillRect(px, py, 1, 2);
-    else c.fillRect(px, py, 2, 1);
+    c.ink(h < 0.3 ? barkInk[1] : barkInk[4]);
+    if (steep) c.rect(px, py, 1, 2);
+    else c.rect(px, py, 2, 1);
   }
 }
 
 /** Draws the posed branches: the roots first, then the trunk and its forks, each a tapered pixel
     line with its lit edge on the left and its shade on the right where it is wide enough, the
     thick ones grooved. */
-function drawBranches(c: CanvasRenderingContext2D, tree: Tree, posed: Posed[]) {
+function drawBranches(c: Pen, tree: Tree, posed: Posed[]) {
   const { branches } = tree;
   const order = [...branches.keys()].sort((a, b) => Number(branches[b].root ?? false) - Number(branches[a].root ?? false));
   for (const i of order) {
     const b = branches[i];
     const p = posed[i];
     const w1 = Math.max(1, Math.round(b.width * (b.root ? 0.3 : 0.64)));
-    c.fillStyle = barkInk[b.width <= 1 ? 2 : 3];
+    c.ink(barkInk[b.width <= 1 ? 2 : 3]);
     line(c, p.x, p.y, p.tipX, p.tipY, b.width, w1);
     if (b.depth === 0) {
       // The trunk flares at the foot, where the roots leave it: a short wedge from half as wide
@@ -503,12 +483,12 @@ function drawBranches(c: CanvasRenderingContext2D, tree: Tree, posed: Posed[]) {
     if (b.width >= 3) {
       // The light from the upper left along the left edge, the shade along the right.
       const off = (b.width >> 1);
-      c.fillStyle = barkInk[4];
+      c.ink(barkInk[4]);
       line(c, p.x - off, p.y, p.tipX - (w1 >> 1), p.tipY, 1, 1);
-      c.fillStyle = barkInk[1];
+      c.ink(barkInk[1]);
       line(c, p.x + off - (b.width % 2 === 0 ? 1 : 0), p.y, p.tipX + (w1 >> 1) - (w1 % 2 === 0 ? 1 : 0), p.tipY, 1, 1);
       if (b.width >= 2 && !b.root) {
-        c.fillStyle = barkInk[0];
+        c.ink(barkInk[0]);
         line(c, p.x + off - (b.width % 2 === 0 ? 1 : 0) + 1, p.y, p.tipX + (w1 >> 1) - (w1 % 2 === 0 ? 1 : 0), p.tipY, 1, 1);
       }
     }
@@ -516,23 +496,42 @@ function drawBranches(c: CanvasRenderingContext2D, tree: Tree, posed: Posed[]) {
   }
 }
 
+/** The leaves behind the branches and those before them, each in their order, split once per set
+    of leaves (a set is not changed once it is drawn). */
+const layers = new WeakMap<Leaf[], [Leaf[], Leaf[]]>();
+
+function layer(leaves: Leaf[], back: boolean): Leaf[] {
+  let split = layers.get(leaves);
+  if (!split) {
+    split = [leaves.filter((l) => !l.back), leaves.filter((l) => l.back)];
+    layers.set(leaves, split);
+  }
+  return split[back ? 1 : 0];
+}
+
 /** Draws the leaves of one layer (behind or before the branches). In a gust a leaf shifts a pixel
     and turns its lighter side for a frame. */
-function drawLeaves(c: CanvasRenderingContext2D, tree: Tree, posed: Posed[], back: boolean, t: number, g: number, sway: number, footX: number, footY: number) {
+function drawLeaves(c: Pen, tree: Tree, posed: Posed[], back: boolean, t: number, g: number, sway: number, footX: number, footY: number) {
   const painted = tree.painted;
-  for (const leaf of tree.leaves) {
-    if (leaf.back !== back) continue;
+  // The picture's bands shift alike for all their leaves, and a branch's direction is the same
+  // for all of its: each is worked out once (a tree of the glade has thousands of leaves).
+  const shifts: number[] = [];
+  if (painted) for (let row = 0; row < painted.h; row += BAND) shifts.push(bandShift(row, painted.h, sway, g, t));
+  const cos = posed.map((p) => Math.cos(p.dir));
+  const sin = posed.map((p) => Math.sin(p.dir));
+  for (const leaf of layer(tree.leaves, back)) {
     let x: number;
     let y: number;
     if (leaf.fixed) {
-      x = footX + leaf.fixed.x + (painted ? bandShift(leaf.fixed.y + painted.foot.y, painted.h, sway, g, t) : 0);
+      // A leaf above the picture's top or below its foot is in none of its bands: worked out
+      // on its own.
+      const band = painted ? Math.floor((leaf.fixed.y + painted.foot.y) / BAND) : -1;
+      x = footX + leaf.fixed.x + (band >= 0 && band < shifts.length ? shifts[band] : painted ? bandShift(leaf.fixed.y + painted.foot.y, painted.h, sway, g, t) : 0);
       y = footY + leaf.fixed.y;
     } else {
       const p = posed[leaf.branch];
-      const sx = Math.cos(p.dir);
-      const sy = Math.sin(p.dir);
-      x = p.x + (p.tipX - p.x) * leaf.at + leaf.side * sx;
-      y = p.y + (p.tipY - p.y) * leaf.at + leaf.side * sy;
+      x = p.x + (p.tipX - p.x) * leaf.at + leaf.side * cos[leaf.branch];
+      y = p.y + (p.tipY - p.y) * leaf.at + leaf.side * sin[leaf.branch];
     }
     let shade = leaf.shade;
     if (g > 0.2) {
@@ -541,20 +540,164 @@ function drawLeaves(c: CanvasRenderingContext2D, tree: Tree, posed: Posed[], bac
       if (flutter > 0.75 && g > 0.35) shade = Math.min(leafInk.length - 1, shade + 1);
     }
     if (back) shade = Math.max(0, shade - 2);
-    c.fillStyle = leafInk[shade];
+    c.ink(leafInk[shade]);
     const px = Math.round(x);
     const py = Math.round(y);
-    for (const [dx, dy, w] of SHAPES[leaf.shape]) c.fillRect(px + dx, py + dy, w, 1);
+    c.runs(px, py, SHAPES[leaf.shape]);
   }
 }
 
 /** Draws the tree with its foot at (x, y) for the moment `t` in the wind `wind` (0 calm .. 1): the
     leaves behind, the branches, the leaves before. */
 export function drawTree(c: CanvasRenderingContext2D, tree: Tree, x: number, y: number, t: number, wind: number) {
+  paint(canvasPen(c), tree, x, y, t, wind);
+}
+
+function paint(pen: Pen, tree: Tree, x: number, y: number, t: number, wind: number) {
   const posed = pose(tree.branches, x, y, t, wind, tree.painted);
   const { sway, g } = windAt(x, y, t, wind);
-  drawLeaves(c, tree, posed, true, t, g, sway, x, y);
-  if (tree.painted) drawPainted(c, tree.painted, x, y, sway, g, t);
-  drawBranches(c, tree, posed);
-  drawLeaves(c, tree, posed, false, t, g, sway, x, y);
+  drawLeaves(pen, tree, posed, true, t, g, sway, x, y);
+  if (tree.painted) drawPainted(pen, tree.painted, x, y, sway, g, t);
+  drawBranches(pen, tree, posed);
+  drawLeaves(pen, tree, posed, false, t, g, sway, x, y);
+}
+
+/** What a tree is drawn with: an ink, rects of whole pixels in it, and rows of the painted
+    picture. A canvas's 2D context is one; the glade draws into a pixel buffer instead
+    (`TreeSprite`). */
+interface Pen {
+  ink(colour: string): void;
+  rect(x: number, y: number, w: number, h: number): void;
+  /** A leaf: rows of pixel runs ([dx, dy, w]) from (x, y). */
+  runs(x: number, y: number, runs: [number, number, number][]): void;
+  picture(p: Painted, row: number, rows: number, x: number, y: number): void;
+}
+
+function canvasPen(c: CanvasRenderingContext2D): Pen {
+  return {
+    ink: (colour) => {
+      c.fillStyle = colour;
+    },
+    rect: (x, y, w, h) => c.fillRect(x, y, w, h),
+    runs: (x, y, runs) => {
+      for (const [dx, dy, w] of runs) c.fillRect(x + dx, y + dy, w, 1);
+    },
+    picture: (p, row, rows, x, y) => c.drawImage(p.image, 0, row, p.w, rows, x, y, p.w, rows),
+  };
+}
+
+/** One tree of the glade on a canvas of its own, posed and drawn as `drawTree` draws it, pixel for
+    pixel, but into a buffer: the glade's 56 trees are some 150,000 leaves, and as rects on a
+    canvas they took a hundred milliseconds a frame (2026-10-26). A rect here is a run of pixels
+    written into the buffer, a row of the picture a copy of its pixels; the canvas takes the
+    buffer once the tree is drawn. */
+export class TreeSprite {
+  readonly canvas: HTMLCanvasElement;
+  /** The foot inside the canvas; its y is the bottom row. */
+  readonly foot: { x: number; y: number };
+  private readonly c: CanvasRenderingContext2D;
+  private readonly image: ImageData;
+  private readonly data: Uint32Array;
+  private readonly w: number;
+  private readonly h: number;
+  /** The painted picture's pixels, row by row. */
+  private readonly pixels: Uint32Array;
+  private readonly inks = new Map<string, number>();
+  private colour = 0;
+  private ink = "";
+  /** Where the canvas's corner lies in the coordinates the tree is drawn in. */
+  private ox = 0;
+  private oy = 0;
+  private readonly pen: Pen;
+
+  constructor(painted: Painted, margin: number) {
+    this.w = painted.w + margin * 2;
+    this.h = painted.h + margin;
+    this.foot = { x: margin + painted.foot.x, y: this.h - 1 };
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = this.w;
+    this.canvas.height = this.h;
+    this.c = this.canvas.getContext("2d")!;
+    this.image = this.c.createImageData(this.w, this.h);
+    this.data = new Uint32Array(this.image.data.buffer);
+    const probe = document.createElement("canvas");
+    probe.width = painted.w;
+    probe.height = painted.h;
+    const pc = probe.getContext("2d", { willReadFrequently: true })!;
+    pc.drawImage(painted.image, 0, 0);
+    this.pixels = new Uint32Array(pc.getImageData(0, 0, painted.w, painted.h).data.buffer);
+    this.pen = {
+      ink: (colour) => {
+        if (colour === this.ink) return;
+        this.ink = colour;
+        let v = this.inks.get(colour);
+        if (v === undefined) {
+          // The bytes of an opaque pixel in the buffer's order: r, g, b, a.
+          const n = parseInt(colour.slice(1, 7), 16);
+          v = (0xff000000 | ((n & 0xff) << 16) | (n & 0xff00) | (n >> 16)) >>> 0;
+          this.inks.set(colour, v);
+        }
+        this.colour = v;
+      },
+      rect: (x, y, w, h) => {
+        const data = this.data;
+        const colour = this.colour;
+        const width = this.w;
+        const lx = x - this.ox;
+        const ly = y - this.oy;
+        const x0 = lx < 0 ? 0 : lx;
+        const x1 = lx + w > width ? width : lx + w;
+        const y0 = ly < 0 ? 0 : ly;
+        const y1 = ly + h > this.h ? this.h : ly + h;
+        for (let yy = y0; yy < y1; yy++) {
+          const row = yy * width;
+          for (let xx = x0; xx < x1; xx++) data[row + xx] = colour;
+        }
+      },
+      runs: (x, y, runs) => {
+        const data = this.data;
+        const colour = this.colour;
+        const width = this.w;
+        const lx = x - this.ox;
+        const ly = y - this.oy;
+        for (let i = 0; i < runs.length; i++) {
+          const run = runs[i];
+          const yy = ly + run[1];
+          if (yy < 0 || yy >= this.h) continue;
+          const x0 = lx + run[0];
+          const x1 = x0 + run[2];
+          const row = yy * width;
+          for (let xx = x0 < 0 ? 0 : x0; xx < x1 && xx < width; xx++) data[row + xx] = colour;
+        }
+      },
+      picture: (p, row, rows, x, y) => {
+        const { data, pixels } = this;
+        const left = x - this.ox;
+        for (let r = 0; r < rows; r++) {
+          const yy = y - this.oy + r;
+          if (yy < 0 || yy >= this.h) continue;
+          const from = (row + r) * p.w;
+          const to = yy * this.w;
+          for (let xx = 0; xx < p.w; xx++) {
+            const px = pixels[from + xx];
+            // The picture is keyed: a pixel is there or not.
+            if (px >>> 24 === 0) continue;
+            const dx = left + xx;
+            if (dx >= 0 && dx < this.w) data[to + dx] = px;
+          }
+        }
+      },
+    };
+  }
+
+  /** Draws `tree` (grown on this sprite's picture) posed for the moment `t` in the wind, as it
+      stands with its foot at (x, y) in the glade, where its wind is read. Whole pixels: (x, y)
+      are whole, so the canvas shows exactly what `drawTree` would put there. */
+  draw(tree: Tree, x: number, y: number, t: number, wind: number) {
+    this.data.fill(0);
+    this.ox = x - this.foot.x;
+    this.oy = y - this.foot.y;
+    paint(this.pen, tree, x, y, t, wind);
+    this.c.putImageData(this.image, 0, 0);
+  }
 }

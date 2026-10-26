@@ -2,10 +2,12 @@
 
    Nothing is blurred and nothing new is painted where the picture already is: every moving thing
    moves by taking another pixel of the picture.
-   - Leaves (masks R) shift by whole pixels: a slow sway, gusts that roll across the forest from
-     the west, and a rustle that differs from clump to clump; crowns move more at the top than at
-     the foot. A leaf only ever takes another leaf's pixel, so no tree bleeds into the meadow.
-   - Grass and flowers (masks G) lean a pixel or two as the gusts pass and catch the light in bands.
+   - Leaves (masks R) shift by whole pixels: a slow sway at each clump's own phase and a small
+     rustle; no gust rolls over them as a wave. A leaf only ever takes another leaf's pixel, so
+     nothing bleeds into the meadow.
+   - Grass and flowers (masks G) flicker a pixel in the wind; no gust rolls over them as a wave.
+   - The trees, bushes and animals come on canvases of their own (lib/flora.ts, lib/fauna.ts),
+     moved by their rigs; the shader only lays snow, wet and the light on them.
    - The falls and the stream run with a flow map (flow.png): two copies of the water slide along
      the flow half a cycle apart and take turns, by an ordered dither instead of a blend, so the
      pixels stay the picture's own colours; streaks of foam race down the falls.
@@ -124,36 +126,14 @@ float luma(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
 // Gusts roll in from the west-north-west: a long swell and a quicker one, uneven in strength.
 // A gust: one broad, slow wave from the west every ten to twenty seconds, some strong and some
 // faint (the envelope), the same in lib/flora.ts, so the crowns and the shader move as one wind.
-// (Until 2026-10-24 two sharper waves with noise: the owner found the picture restless.)
+// (Until 2026-10-24 two sharper waves with noise: the owner found the picture restless.) Since
+// 2026-10-26 only the chimney's smoke takes it here; the plants, the grass and the painted leaves
+// no longer show it as a wave rolling over them.
 float gust(vec2 p) {
   float s = dot(p, vec2(0.94, 0.34));
   float a = 0.5 + 0.5 * sin(s * 0.0055 - t * 0.38);
   float env = 0.6 + 0.8 * (0.5 + 0.5 * sin(t * 0.3 + 1.0));
   return pow(a, 3.0) * env;
-}
-
-// A plant's pixel (the behind and front canvases, lib/flora.ts) in the breeze: the crown's
-// body stands (the swaying is the rig's, lib/flora.ts); only a leaf at the crown's edge lets go
-// for a frame now and then in a gust, so the silhouette rustles, and the lit side shines a hair.
-// Bark and stone (little colour) do nothing. (Until 2026-10-24 every pixel took a neighbour in
-// a wave: the owner found that restless.)
-vec4 breeze(sampler2D layer, ivec2 p, vec4 px) {
-  vec2 f = vec2(p);
-  float g = gust(f) * wind;
-  if (g < 0.12) return px;
-  float sat = max(px.r, max(px.g, px.b)) - min(px.r, min(px.g, px.b));
-  if (sat < 0.2) return px;
-  // The crown's edge is where the open sky lies three and five pixels on, not a gap between two
-  // leaf clumps: the rendered trees (lib/tree.ts, 2026-10-25) are full of such gaps, and with
-  // a one-pixel test the whole crown let go as a gust passed (owner: "weirde Baum-Effekte wenn
-  // man die vertikale Linie übertritt").
-  bool open3 = texelFetch(layer, inside(p + ivec2(3, 0)), 0).a < 0.5 || texelFetch(layer, inside(p - ivec2(3, 0)), 0).a < 0.5 || texelFetch(layer, inside(p - ivec2(0, 3)), 0).a < 0.5;
-  bool open5 = texelFetch(layer, inside(p + ivec2(5, 0)), 0).a < 0.5 || texelFetch(layer, inside(p - ivec2(5, 0)), 0).a < 0.5 || texelFetch(layer, inside(p - ivec2(0, 5)), 0).a < 0.5;
-  bool near = texelFetch(layer, inside(p + ivec2(1, 0)), 0).a < 0.5 || texelFetch(layer, inside(p - ivec2(1, 0)), 0).a < 0.5 || texelFetch(layer, inside(p - ivec2(0, 1)), 0).a < 0.5;
-  bool edge = near && open3 && open5;
-  if (edge && hash(f + floor(t * 5.0)) < g * 0.15) px.a = 0.0;
-  px.rgb *= 1.0 + 0.05 * min(g, 1.5);
-  return px;
 }
 
 // Snow on a plant (or the deer): on the lit leaves as the cover grows, a cap along the crown's
@@ -392,31 +372,28 @@ void main() {
     // Grey under the leaf mask is rock or bark (a tester saw rocks move in the wind): it stays.
     c = pick(p);
   } else if (m.r > 0.01) {
-    // Leaves: sway, gust and rustle, by whole pixels, only ever from leaf to leaf.
-    float g = gust(f) * wind;
-    float sway = sin(t * 1.05 + f.x * 0.012 + f.y * 0.006) * (0.6 + 0.4 * wind);
-    // The rustle (rx, ry) is small and only in a gust, so the crown does not seethe with
-    // shuffled pixels; the gust's shine is faint, not a band rolling over.
+    // Leaves: a slow sway and a small rustle, by whole pixels, only ever from leaf to leaf. Each
+    // clump breathes at a phase of its own: no gust and no sway travels over them as a wave any
+    // more (owner, 2026-10-26: "entfern mal diesen wave shader").
+    float sway = sin(t * 1.05 + noise(f * 0.02) * 6.2832) * (0.6 + 0.4 * wind);
     float rx = noise(f * 0.16 + vec2(t * 1.4, t * 1.0)) - 0.5;
     float ry = noise(f * 0.16 + vec2(-t * 1.1, t * 1.6) + 31.0) - 0.5;
-    vec2 d = vec2(sway * 0.8 + g * 1.6 + rx * 1.0 * g, ry * 0.6 * g + abs(sway) * 0.3) * m.r;
+    vec2 d = vec2(sway * 0.8 + rx * 0.5 * wind, ry * 0.3 * wind + abs(sway) * 0.3) * m.r;
     ivec2 q = p + ivec2(round(d));
     if (kind(q).r < 0.01) q = p;
     src = q;
-    c = pick(q) * (1.0 + 0.035 * min(g, 1.5) * m.r);
+    c = pick(q);
   } else if (m.g > 0.7) {
-    // Grass and flowers lean with the gusts and shine in bands as they pass, and give way round
-    // the wanderer's feet.
-    float g = gust(f) * wind;
-    // Gentle (owner, 2026-10-25: "die Wellen auf dem Rasen abschwächen"): a lean of a pixel in
-    // a gust, a flicker of less, and hardly any shine.
-    float x = g * 0.7 + sin(t * 2.1 + f.x * 0.09 + f.y * 0.05) * 0.3 * (0.5 + 0.5 * wind) + (noise(f * 0.3 + t * 2.0) - 0.5) * 0.4;
+    // Grass and flowers flicker in the wind and give way round the wanderer's feet. No gust
+    // rolls over them as a wave any more (owner, 2026-10-25: "die Wellen auf dem Rasen
+    // abschwächen"; 2026-10-26: "entfern mal diesen wave shader").
+    float x = sin(t * 2.1 + f.x * 0.09 + f.y * 0.05) * 0.3 * (0.5 + 0.5 * wind) + (noise(f * 0.3 + t * 2.0) - 0.5) * 0.4;
     vec2 toHero = f - hero;
     x += sign(toHero.x + 0.01) * 2.0 * smoothstep(8.0, 2.0, length(toHero * vec2(1.0, 1.8)));
     ivec2 q = p + ivec2(int(round(x)), 0);
     if (kind(q).g < 0.7) q = p;
     src = q;
-    c = pick(q) * (1.0 + 0.015 * min(g, 1.5));
+    c = pick(q);
   } else {
     c = pick(p);
   }
@@ -425,12 +402,11 @@ void main() {
   // crowns; shade, trunks and water stay dark. A dithered rim where it thins.
   // What stands behind the trees (the deer): under the crowns that are in front of it, over
   // the rest; it takes the hour and the weather like the glade, but no snow lies on it.
+  // The plants come as lib/flora.ts drew them: their wind is the rig's (the twigs bend and the
+  // leaves flutter, as the study's tree does). Until 2026-10-26 a gust rolled over them here as
+  // a wave, letting edge leaves go and shining (owner: "entfern mal diesen wave shader").
   vec4 b = texelFetch(behind, p, 0);
   bool behindHere = b.a > 0.5;
-  if (behindHere) {
-    b = breeze(behind, p, b);
-    behindHere = b.a > 0.5;
-  }
   if (behindHere) c = plantSnow(b.rgb, p, behind);
   // The plants in front of the wanderer (the front canvas) are laid on here as well, at the same
   // stage as those behind, so a crown looks the same from either side of it (owner,
@@ -438,11 +414,7 @@ void main() {
   // the hour, the lights) treats both alike, and the overlay stays under it.
   vec4 fr = texelFetch(front, p, 0);
   bool frontHere = fr.a > 0.5;
-  if (frontHere) {
-    fr = breeze(front, p, fr);
-    frontHere = fr.a > 0.5;
-    if (frontHere) c = plantSnow(fr.rgb, p, front);
-  }
+  if (frontHere) c = plantSnow(fr.rgb, p, front);
   bool plantHere = behindHere || frontHere;
 
   float snowy = 0.0;
